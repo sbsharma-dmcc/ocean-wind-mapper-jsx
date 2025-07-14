@@ -212,69 +212,93 @@ const WindMap: React.FC = () => {
       console.log('🎨 Adding wind visualization layers...');
 
       // Remove existing layers if they exist
-      ['wind-speed-fill', 'wind-arrows', 'debug-all-features'].forEach(layerId => {
+      ['wind-barbs', 'wind-arrows', 'wind-debug'].forEach(layerId => {
         if (map.current!.getLayer(layerId)) {
           console.log(`🗑️ Removing existing layer: ${layerId}`);
           map.current!.removeLayer(layerId);
         }
       });
 
-      // First, add a simple debug layer to show ALL features from the DTN source
+      // Create wind barb symbols using text and rotation
+      const config = windLayerConfig || {
+        textSize: 16,
+        allowOverlap: true,
+        symbolSpacing: 80,
+        textColor: '#000000',
+        haloColor: '#ffffff',
+        haloWidth: 1,
+        textOpacity: 0.9
+      };
+
       map.current.addLayer({
-        id: 'debug-all-features',
-        type: 'fill',
+        id: 'wind-barbs',
+        type: 'symbol',
         source: 'dtn-wind',
         'source-layer': SOURCE_LAYER,
-        paint: {
-          'fill-color': '#00FFFF',  // Bright cyan - should be very visible
-          'fill-opacity': 0.6
-        },
         layout: {
+          'symbol-placement': 'point',
+          'text-field': '⎪',  // Wind barb symbol
+          'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+          'text-size': config.textSize,
+          'text-anchor': 'center',
+          'text-rotate': [
+            'case',
+            ['has', 'wind_direction_10m'],
+            ['get', 'wind_direction_10m'],
+            0
+          ],
+          'text-allow-overlap': config.allowOverlap,
+          'text-ignore-placement': false,
+          'symbol-spacing': config.symbolSpacing,
           'visibility': windLayerVisible ? 'visible' : 'none'
+        },
+        paint: {
+          'text-color': config.textColor,
+          'text-halo-color': config.haloColor,
+          'text-halo-width': config.haloWidth,
+          'text-opacity': config.textOpacity
         }
       });
 
-      // Add a layer that shows ANY geometry, regardless of properties
+      // Fallback layer showing wind data as colored circles
       map.current.addLayer({
-        id: 'wind-raw-data',
-        type: 'fill',
-        source: 'dtn-wind',
-        'source-layer': SOURCE_LAYER,
-        paint: {
-          'fill-color': '#FF00FF',  // Bright magenta - fallback color
-          'fill-opacity': 0.8
-        },
-        layout: {
-          'visibility': windLayerVisible ? 'visible' : 'none'
-        }
-      });
-
-      // Try a circle layer to see point data
-      map.current.addLayer({
-        id: 'wind-points',
+        id: 'wind-debug',
         type: 'circle',
         source: 'dtn-wind',
         'source-layer': SOURCE_LAYER,
         paint: {
-          'circle-radius': 6,
-          'circle-color': '#FFFF00',  // Yellow circles
-          'circle-opacity': 0.8
-        },
-        layout: {
-          'visibility': windLayerVisible ? 'visible' : 'none'
-        }
-      });
-
-      // Add a line layer in case the data is linestrings
-      map.current.addLayer({
-        id: 'wind-lines',
-        type: 'line',
-        source: 'dtn-wind',
-        'source-layer': SOURCE_LAYER,
-        paint: {
-          'line-color': '#FF4500',  // Orange lines
-          'line-width': 3,
-          'line-opacity': 0.8
+          'circle-radius': [
+            'case',
+            ['has', 'wind_speed_10m'],
+            [
+              'interpolate',
+              ['linear'],
+              ['get', 'wind_speed_10m'],
+              0, 3,
+              25, 6,
+              50, 10
+            ],
+            4
+          ],
+          'circle-color': [
+            'case',
+            ['has', 'wind_speed_10m'],
+            [
+              'interpolate',
+              ['linear'],
+              ['get', 'wind_speed_10m'],
+              0, '#87CEEB',
+              10, '#4169E1',
+              20, '#228B22',
+              30, '#FFD700',
+              40, '#FF4500',
+              50, '#DC143C'
+            ],
+            '#808080'
+          ],
+          'circle-opacity': 0.8,
+          'circle-stroke-width': 1,
+          'circle-stroke-color': '#000000'
         },
         layout: {
           'visibility': windLayerVisible ? 'visible' : 'none'
