@@ -206,87 +206,116 @@ const WindMap: React.FC = () => {
   };
 
   const addWindLayers = () => {
-    if (!map.current || !mapLoaded) return;
+    if (!map.current) return;
 
     try {
+      console.log('🎨 Adding wind visualization layers...');
+
       // Remove existing layers if they exist
       ['wind-speed-fill', 'wind-arrows', 'debug-all-features'].forEach(layerId => {
         if (map.current!.getLayer(layerId)) {
+          console.log(`🗑️ Removing existing layer: ${layerId}`);
           map.current!.removeLayer(layerId);
         }
       });
 
-      console.log('🎨 Adding wind visualization layers...');
-
-      // 1. Wind speed fill layer
-      map.current.addLayer({
-        id: 'wind-speed-fill',
-        type: 'fill',
-        source: 'dtn-wind',
-        'source-layer': SOURCE_LAYER,
-        paint: {
-          'fill-color': [
-            'case',
-            ['has', 'windSpeed'],
-            [
-              'interpolate',
-              ['linear'],
-              ['to-number', ['get', 'windSpeed']],
-              0, '#22C55E',
-              5, '#84CC16',
-              10, '#EAB308',
-              15, '#F97316',
-              25, '#DC2626',
-              35, '#7C2D12'
-            ],
-            ['has', 'wind_speed'],
-            [
-              'interpolate',
-              ['linear'],
-              ['to-number', ['get', 'wind_speed']],
-              0, '#22C55E',
-              5, '#84CC16',
-              10, '#EAB308',
-              15, '#F97316',
-              25, '#DC2626',
-              35, '#7C2D12'
-            ],
-            '#FF00FF'
-          ],
-          'fill-opacity': windLayerConfig?.textOpacity || 0.7
-        },
-        layout: {
-          'visibility': windLayerVisible ? 'visible' : 'none'
-        }
-      });
-
-      // 2. Debug layer to show any data
+      // First, add a simple debug layer to show ALL features from the DTN source
       map.current.addLayer({
         id: 'debug-all-features',
         type: 'fill',
         source: 'dtn-wind',
         'source-layer': SOURCE_LAYER,
         paint: {
-          'fill-color': '#00FFFF',
-          'fill-opacity': 0.2
+          'fill-color': '#00FFFF',  // Bright cyan - should be very visible
+          'fill-opacity': 0.6
         },
         layout: {
           'visibility': windLayerVisible ? 'visible' : 'none'
         }
       });
 
-      console.log('✅ Wind layers added successfully');
+      // Add a layer that shows ANY geometry, regardless of properties
+      map.current.addLayer({
+        id: 'wind-raw-data',
+        type: 'fill',
+        source: 'dtn-wind',
+        'source-layer': SOURCE_LAYER,
+        paint: {
+          'fill-color': '#FF00FF',  // Bright magenta - fallback color
+          'fill-opacity': 0.8
+        },
+        layout: {
+          'visibility': windLayerVisible ? 'visible' : 'none'
+        }
+      });
 
-      // Query features for debugging
+      // Try a circle layer to see point data
+      map.current.addLayer({
+        id: 'wind-points',
+        type: 'circle',
+        source: 'dtn-wind',
+        'source-layer': SOURCE_LAYER,
+        paint: {
+          'circle-radius': 6,
+          'circle-color': '#FFFF00',  // Yellow circles
+          'circle-opacity': 0.8
+        },
+        layout: {
+          'visibility': windLayerVisible ? 'visible' : 'none'
+        }
+      });
+
+      // Add a line layer in case the data is linestrings
+      map.current.addLayer({
+        id: 'wind-lines',
+        type: 'line',
+        source: 'dtn-wind',
+        'source-layer': SOURCE_LAYER,
+        paint: {
+          'line-color': '#FF4500',  // Orange lines
+          'line-width': 3,
+          'line-opacity': 0.8
+        },
+        layout: {
+          'visibility': windLayerVisible ? 'visible' : 'none'
+        }
+      });
+
+      console.log('✅ All debug layers added successfully');
+
+      // Query the source for actual data
       setTimeout(() => {
         if (map.current) {
+          console.log('🔍 Querying DTN wind features...');
+          
+          // Try to get all available source layers
+          const source = map.current.getSource('dtn-wind') as mapboxgl.VectorTileSource;
+          console.log('📡 DTN source details:', source);
+
+          // Query features at current viewport
           const features = map.current.querySourceFeatures('dtn-wind', {
             sourceLayer: SOURCE_LAYER
           });
-          console.log(`🔍 Found ${features.length} wind features`);
-          if (features.length > 0) {
-            console.log('📊 Sample feature:', features[0].properties);
+          
+          console.log(`🔍 Found ${features.length} wind features in source layer '${SOURCE_LAYER}'`);
+          
+          if (features.length === 0) {
+            // Try querying without specifying source layer to see what's available
+            const allFeatures = map.current.querySourceFeatures('dtn-wind');
+            console.log(`🔍 Found ${allFeatures.length} total features across all layers`);
+            
+            if (allFeatures.length > 0) {
+              console.log('📊 Available source layers:', [...new Set(allFeatures.map(f => f.sourceLayer))]);
+              console.log('📊 Sample feature from first available layer:', allFeatures[0]);
+            }
+          } else {
+            console.log('📊 Sample wind feature:', features[0]);
+            console.log('📊 Available properties:', Object.keys(features[0].properties || {}));
+            console.log('📊 Geometry type:', features[0].geometry.type);
           }
+
+          // Force a map repaint
+          map.current.triggerRepaint();
         }
       }, 2000);
       
@@ -327,7 +356,7 @@ const WindMap: React.FC = () => {
   };
 
   const toggleWindLayer = () => {
-    if (!map.current || !mapLoaded) return;
+    if (!map.current) return;
     
     const newVisibility = !windLayerVisible;
     setWindLayerVisible(newVisibility);
@@ -335,19 +364,23 @@ const WindMap: React.FC = () => {
     const visibility = newVisibility ? 'visible' : 'none';
     
     // Toggle all wind-related layers
-    try {
-      if (map.current.getLayer('wind-speed-fill')) {
-        map.current.setLayoutProperty('wind-speed-fill', 'visibility', visibility);
+    const layerIds = ['wind-speed-fill', 'wind-arrows', 'debug-all-features', 'wind-raw-data', 'wind-points', 'wind-lines'];
+    
+    layerIds.forEach(layerId => {
+      try {
+        if (map.current!.getLayer(layerId)) {
+          map.current!.setLayoutProperty(layerId, 'visibility', visibility);
+        }
+      } catch (error) {
+        console.error(`Error toggling layer ${layerId}:`, error);
       }
-      if (map.current.getLayer('wind-arrows')) {
-        map.current.setLayoutProperty('wind-arrows', 'visibility', visibility);
-      }
-      if (map.current.getLayer('debug-all-features')) {
-        map.current.setLayoutProperty('debug-all-features', 'visibility', visibility);
-      }
-      console.log('Toggled wind layer visibility to:', visibility);
-    } catch (error) {
-      console.error('Error toggling layer visibility:', error);
+    });
+    
+    console.log('Toggled wind layer visibility to:', visibility);
+    
+    // Force repaint
+    if (map.current) {
+      map.current.triggerRepaint();
     }
   };
 
