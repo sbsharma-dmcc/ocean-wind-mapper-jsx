@@ -55,17 +55,45 @@ const WindMap: React.FC = () => {
       
       if (!map.current) return;
 
-      // Add DTN wind vector source
+      console.log('Map loaded, attempting to add DTN wind source...');
+
+      // Try DTN wind vector source with different URL format
+      const dtnTileUrl = `https://map.api.dtn.com/v2/tiles/${TILESET_ID}/{z}/{x}/{y}`;
+      
+      console.log('DTN Tile URL:', dtnTileUrl);
+      console.log('Access Token (first 50 chars):', ACCESS_TOKEN.substring(0, 50) + '...');
+
       map.current.addSource('dtn-wind', {
         type: 'vector',
-        tiles: [
-          `https://map.api.dtn.com/v2/tiles/${TILESET_ID}/{z}/{x}/{y}?access_token=${ACCESS_TOKEN}`
-        ],
+        tiles: [dtnTileUrl],
         minzoom: 2,
         maxzoom: 10,
+        transformRequest: (url, resourceType) => {
+          console.log('Transform request for:', url, 'Type:', resourceType);
+          if (url.startsWith('https://map.api.dtn.com')) {
+            return {
+              url: `${url}?access_token=${ACCESS_TOKEN}`,
+              headers: {
+                'Authorization': `Bearer ${ACCESS_TOKEN}`,
+                'Content-Type': 'application/json'
+              }
+            };
+          }
+          return { url };
+        }
       });
 
-      // Add wind speed color layer
+      // Add source data event listener
+      map.current.on('sourcedata', (e) => {
+        if (e.sourceId === 'dtn-wind') {
+          console.log('DTN Wind source data event:', e);
+          if (e.isSourceLoaded) {
+            console.log('DTN Wind source fully loaded');
+          }
+        }
+      });
+
+      // Add wind speed color layer with more visible styling for debugging
       map.current.addLayer({
         id: 'wind-speed-fill',
         type: 'fill',
@@ -73,51 +101,77 @@ const WindMap: React.FC = () => {
         'source-layer': SOURCE_LAYER,
         paint: {
           'fill-color': [
-            'interpolate',
-            ['linear'],
-            ['get', 'windSpeed'],
-            0, '#22C55E',      // Low wind - green
-            10, '#EAB308',     // Medium wind - yellow
-            20, '#F97316',     // High wind - orange
-            30, '#DC2626',     // Extreme wind - red
-            50, '#7C2D12'      // Very extreme - dark red
+            'case',
+            ['has', 'windSpeed'],
+            [
+              'interpolate',
+              ['linear'],
+              ['get', 'windSpeed'],
+              0, '#22C55E',      // Low wind - green
+              10, '#EAB308',     // Medium wind - yellow
+              20, '#F97316',     // High wind - orange
+              30, '#DC2626',     // Extreme wind - red
+              50, '#7C2D12'      // Very extreme - dark red
+            ],
+            '#FF00FF'  // Magenta fallback for debugging
           ],
-          'fill-opacity': 0.6
+          'fill-opacity': 0.8
         },
         layout: {
           'visibility': windLayerVisible ? 'visible' : 'none'
         }
       });
 
-      // Add wind direction arrows layer
+      // Add a test layer to show any vector data
       map.current.addLayer({
-        id: 'wind-arrows',
-        type: 'symbol',
+        id: 'debug-all-features',
+        type: 'fill',
         source: 'dtn-wind',
         'source-layer': SOURCE_LAYER,
-        layout: {
-          'icon-image': 'arrow-15',
-          'icon-size': [
-            'interpolate',
-            ['linear'],
-            ['get', 'windSpeed'],
-            0, 0.3,
-            50, 1.0
-          ],
-          'icon-rotate': ['get', 'windDirection'],
-          'icon-rotation-alignment': 'map',
-          'icon-allow-overlap': true,
-          'visibility': windLayerVisible ? 'visible' : 'none'
-        },
         paint: {
-          'icon-opacity': 0.8
+          'fill-color': '#00FFFF',  // Cyan for debugging
+          'fill-opacity': 0.3
+        },
+        layout: {
+          'visibility': windLayerVisible ? 'visible' : 'none'
         }
       });
+
+      // Log layer info for debugging
+      setTimeout(() => {
+        if (map.current) {
+          const layers = map.current.getStyle().layers;
+          console.log('All map layers:', layers.map(l => l.id));
+          
+          const source = map.current.getSource('dtn-wind');
+          console.log('DTN Wind source:', source);
+          
+          const features = map.current.querySourceFeatures('dtn-wind', {
+            sourceLayer: SOURCE_LAYER
+          });
+          console.log('DTN Wind features found:', features.length);
+          if (features.length > 0) {
+            console.log('Sample feature:', features[0]);
+          }
+        }
+      }, 3000);
     });
 
-    // Handle map errors
-    map.current.on('error', (e) => {
-      console.error('Map error:', e);
+    // Handle map errors with more detailed logging
+    map.current.on('error', (e: any) => {
+      console.error('Map error details:', {
+        error: e.error,
+        message: e.error?.message,
+        status: e.error?.status,
+        url: e.error?.url,
+        sourceId: e.sourceId
+      });
+      
+      if (e.error?.status === 401) {
+        console.error('Authentication failed - DTN access token may be expired or invalid');
+        // You might want to show a user-friendly message here
+      }
+      
       setIsLoading(false);
     });
 
@@ -134,8 +188,15 @@ const WindMap: React.FC = () => {
     setWindLayerVisible(newVisibility);
     
     const visibility = newVisibility ? 'visible' : 'none';
-    map.current.setLayoutProperty('wind-speed-fill', 'visibility', visibility);
-    map.current.setLayoutProperty('wind-arrows', 'visibility', visibility);
+    
+    // Toggle all wind-related layers
+    try {
+      map.current.setLayoutProperty('wind-speed-fill', 'visibility', visibility);
+      map.current.setLayoutProperty('debug-all-features', 'visibility', visibility);
+      console.log('Toggled wind layer visibility to:', visibility);
+    } catch (error) {
+      console.error('Error toggling layer visibility:', error);
+    }
   };
 
   const resetView = () => {
@@ -173,6 +234,18 @@ const WindMap: React.FC = () => {
           </Card>
         </div>
       )}
+
+      {/* Debug Info */}
+      <div className="absolute top-4 right-4 z-20">
+        <Card className="p-3 max-w-sm">
+          <h4 className="text-xs font-semibold text-foreground mb-2">Debug Info</h4>
+          <div className="text-xs text-muted-foreground space-y-1">
+            <div>Map Loaded: {mapLoaded ? '✓' : '✗'}</div>
+            <div>Wind Layer: {windLayerVisible ? 'Visible' : 'Hidden'}</div>
+            <div className="text-destructive">Check console for DTN API logs</div>
+          </div>
+        </Card>
+      </div>
 
       {/* Controls Panel */}
       <div className="absolute top-4 left-4 z-20 space-y-2">
