@@ -57,43 +57,46 @@ const WindMap: React.FC = () => {
 
       console.log('Map loaded, attempting to add DTN wind source...');
 
-      // Try DTN wind vector source with different URL format
-      const dtnTileUrl = `https://map.api.dtn.com/v2/tiles/${TILESET_ID}/{z}/{x}/{y}`;
+      // DTN API uses specific authentication format
+      const dtnTileUrl = `https://map.api.dtn.com/v2/tiles/${TILESET_ID}/{z}/{x}/{y}?access_token=${ACCESS_TOKEN}`;
       
-      console.log('DTN Tile URL:', dtnTileUrl);
-      console.log('Access Token (first 50 chars):', ACCESS_TOKEN.substring(0, 50) + '...');
+      console.log('DTN Tile URL template:', dtnTileUrl);
+      console.log('Access Token valid until Jan 14, 2025');
 
+      // Add DTN wind vector source with proper configuration
       map.current.addSource('dtn-wind', {
         type: 'vector',
         tiles: [dtnTileUrl],
-        minzoom: 2,
-        maxzoom: 10,
-        transformRequest: (url, resourceType) => {
-          console.log('Transform request for:', url, 'Type:', resourceType);
-          if (url.startsWith('https://map.api.dtn.com')) {
-            return {
-              url: `${url}?access_token=${ACCESS_TOKEN}`,
-              headers: {
-                'Authorization': `Bearer ${ACCESS_TOKEN}`,
-                'Content-Type': 'application/json'
-              }
-            };
-          }
-          return { url };
-        }
+        minzoom: 0,
+        maxzoom: 14,
+        tileSize: 512,
+        attribution: '© DTN Weather API',
       });
 
-      // Add source data event listener
+      // Wait for source to load
       map.current.on('sourcedata', (e) => {
-        if (e.sourceId === 'dtn-wind') {
-          console.log('DTN Wind source data event:', e);
-          if (e.isSourceLoaded) {
-            console.log('DTN Wind source fully loaded');
-          }
+        if (e.sourceId === 'dtn-wind' && e.isSourceLoaded) {
+          console.log('DTN Wind source loaded successfully');
+          
+          // Query features to see what data is available
+          setTimeout(() => {
+            if (map.current) {
+              const features = map.current.querySourceFeatures('dtn-wind', {
+                sourceLayer: SOURCE_LAYER
+              });
+              console.log(`Found ${features.length} wind features`);
+              if (features.length > 0) {
+                console.log('Sample feature properties:', features[0].properties);
+                console.log('Available properties:', Object.keys(features[0].properties || {}));
+              }
+            }
+          }, 1000);
         }
       });
 
-      // Add wind speed color layer with more visible styling for debugging
+      // Add comprehensive wind visualization layers
+      
+      // 1. Wind speed fill layer with better property detection
       map.current.addLayer({
         id: 'wind-speed-fill',
         type: 'fill',
@@ -106,23 +109,82 @@ const WindMap: React.FC = () => {
             [
               'interpolate',
               ['linear'],
-              ['get', 'windSpeed'],
+              ['to-number', ['get', 'windSpeed']],
               0, '#22C55E',      // Low wind - green
+              5, '#84CC16',      // Light wind - lime  
               10, '#EAB308',     // Medium wind - yellow
-              20, '#F97316',     // High wind - orange
-              30, '#DC2626',     // Extreme wind - red
-              50, '#7C2D12'      // Very extreme - dark red
+              15, '#F97316',     // High wind - orange
+              25, '#DC2626',     // Strong wind - red
+              35, '#7C2D12'      // Extreme wind - dark red
             ],
-            '#FF00FF'  // Magenta fallback for debugging
+            ['has', 'wind_speed'],
+            [
+              'interpolate',
+              ['linear'],
+              ['to-number', ['get', 'wind_speed']],
+              0, '#22C55E',
+              5, '#84CC16',
+              10, '#EAB308',
+              15, '#F97316',
+              25, '#DC2626',
+              35, '#7C2D12'
+            ],
+            '#FF00FF'  // Magenta fallback for debugging - shows if no wind data properties found
           ],
-          'fill-opacity': 0.8
+          'fill-opacity': 0.7
         },
         layout: {
           'visibility': windLayerVisible ? 'visible' : 'none'
         }
       });
 
-      // Add a test layer to show any vector data
+      // 2. Wind direction arrows layer
+      map.current.addLayer({
+        id: 'wind-arrows',
+        type: 'symbol',
+        source: 'dtn-wind',
+        'source-layer': SOURCE_LAYER,
+        layout: {
+          'icon-image': 'airport-15', // Using built-in Mapbox icon
+          'icon-size': [
+            'case',
+            ['has', 'windSpeed'],
+            [
+              'interpolate',
+              ['linear'],
+              ['to-number', ['get', 'windSpeed']],
+              0, 0.5,
+              35, 1.5
+            ],
+            ['has', 'wind_speed'],
+            [
+              'interpolate',
+              ['linear'],
+              ['to-number', ['get', 'wind_speed']],
+              0, 0.5,
+              35, 1.5
+            ],
+            0.8
+          ],
+          'icon-rotate': [
+            'case',
+            ['has', 'windDirection'],
+            ['get', 'windDirection'],
+            ['has', 'wind_direction'],
+            ['get', 'wind_direction'],
+            0
+          ],
+          'icon-rotation-alignment': 'map',
+          'icon-allow-overlap': true,
+          'visibility': windLayerVisible ? 'visible' : 'none'
+        },
+        paint: {
+          'icon-opacity': 0.8,
+          'icon-color': '#1f2937'
+        }
+      });
+
+      // 3. Debug layer to show ALL features regardless of properties
       map.current.addLayer({
         id: 'debug-all-features',
         type: 'fill',
@@ -192,6 +254,7 @@ const WindMap: React.FC = () => {
     // Toggle all wind-related layers
     try {
       map.current.setLayoutProperty('wind-speed-fill', 'visibility', visibility);
+      map.current.setLayoutProperty('wind-arrows', 'visibility', visibility);
       map.current.setLayoutProperty('debug-all-features', 'visibility', visibility);
       console.log('Toggled wind layer visibility to:', visibility);
     } catch (error) {
@@ -235,14 +298,19 @@ const WindMap: React.FC = () => {
         </div>
       )}
 
-      {/* Debug Info */}
+      {/* Debug Info Panel */}
       <div className="absolute top-4 right-4 z-20">
         <Card className="p-3 max-w-sm">
-          <h4 className="text-xs font-semibold text-foreground mb-2">Debug Info</h4>
+          <h4 className="text-xs font-semibold text-foreground mb-2">🔍 Debug Status</h4>
           <div className="text-xs text-muted-foreground space-y-1">
-            <div>Map Loaded: {mapLoaded ? '✓' : '✗'}</div>
-            <div>Wind Layer: {windLayerVisible ? 'Visible' : 'Hidden'}</div>
-            <div className="text-destructive">Check console for DTN API logs</div>
+            <div>Map: {mapLoaded ? '✅ Loaded' : '⏳ Loading'}</div>
+            <div>Wind Layer: {windLayerVisible ? '👁️ Visible' : '🙈 Hidden'}</div>
+            <div>Source Layer: {SOURCE_LAYER}</div>
+            <div className="text-destructive font-medium">💡 Check console for detailed logs</div>
+            <div className="text-xs bg-muted p-1 rounded mt-2">
+              If you see <span className="text-cyan-500">cyan</span> areas, data is loading!
+              <br />If you see <span className="text-pink-500">magenta</span>, check property names.
+            </div>
           </div>
         </Card>
       </div>
