@@ -31,8 +31,9 @@ export const useLayerConfiguration = () => {
     };
   }, []);
 
+  // Return configuration state and setter function
   return {
-    layerConfigs,
-    setLayerConfigs
+    layerConfigs,     // Current layer configuration object
+    setLayerConfigs   // Function to update layer configurations
   };
 };

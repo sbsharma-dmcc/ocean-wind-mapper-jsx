@@ -48,6 +48,7 @@ export const useDTNLayers = (map: mapboxgl.Map | null, layerConfigs: any, active
       return;
     }
 
+    // If overlay is already active, remove it instead of adding
     if (activeOverlays.includes(overlay)) {
       console.log(`Removing overlay: ${overlay}`);
       removeOverlay(overlay);
@@ -65,13 +66,15 @@ export const useDTNLayers = (map: mapboxgl.Map | null, layerConfigs: any, active
       const tileURL = createTileURL(dtnLayerId, tileSetId);
       console.log(`Tile URL: ${tileURL}`);
       
+      // Only add source if it doesn't already exist
       if (!map.getSource(sourceId)) {
         console.log(`Adding source: ${sourceId}`);
+        // Add vector tile source to the map
         map.addSource(sourceId, {
-          type: "vector",
-          tiles: [tileURL],
-          minzoom: 0,
-          maxzoom: 14,
+          type: "vector",         // Vector tile format
+          tiles: [tileURL],       // Array of tile URLs (DTN endpoint)
+          minzoom: 0,             // Minimum zoom level for tiles
+          maxzoom: 14,            // Maximum zoom level for tiles
         });
 
         let beforeId = undefined;
