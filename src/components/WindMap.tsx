@@ -3,8 +3,10 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Wind, RotateCcw, ZoomIn, ZoomOut, AlertTriangle } from 'lucide-react';
-import TokenInput from './TokenInput';
+import { Wind, RotateCcw, ZoomIn, ZoomOut, AlertTriangle, Settings } from 'lucide-react';
+import { getDirectDTNToken, hasValidDTNToken } from '@/utils/dtnTokenManager';
+import DirectTokenInput from './DirectTokenInput';
+import WindLayerConfig from './WindLayerConfig';
 
 // DTN Configuration - Updated with fresh token
 const TILESET_ID = '16a81a7a-e6f0-4e5e-9bae-2b9283d1ead5';
@@ -23,9 +25,63 @@ const WindMap: React.FC = () => {
   const [mapLoaded, setMapLoaded] = useState(false);
   const [authError, setAuthError] = useState(false);
   const [showTokenInput, setShowTokenInput] = useState(false);
+  const [showWindConfig, setShowWindConfig] = useState(false);
+  const [windLayerConfig, setWindLayerConfig] = useState<any>(null);
 
   useEffect(() => {
     if (!mapContainer.current) return;
+
+    // Check for DTN token first
+    if (!hasValidDTNToken()) {
+      console.log('🚨 No DTN token found, showing token input');
+      setShowTokenInput(true);
+      setIsLoading(false);
+      return;
+    }
+
+    initializeMap();
+
+    // Listen for token updates
+    const handleTokenUpdate = () => {
+      console.log('🔄 DTN token updated, reinitializing map');
+      if (map.current) {
+        map.current.remove();
+        map.current = null;
+      }
+      setMapLoaded(false);
+      setIsLoading(true);
+      setAuthError(false);
+      setShowTokenInput(false);
+      
+      setTimeout(() => {
+        if (hasValidDTNToken()) {
+          initializeMap();
+        } else {
+          setShowTokenInput(true);
+          setIsLoading(false);
+        }
+      }, 100);
+    };
+
+    // Listen for wind config updates
+    const handleWindConfigUpdate = (event: CustomEvent) => {
+      console.log('🎨 Wind config updated:', event.detail.config);
+      setWindLayerConfig(event.detail.config);
+      updateWindLayerStyling(event.detail.config);
+    };
+
+    window.addEventListener('dtnTokenUpdated', handleTokenUpdate);
+    window.addEventListener('windConfigUpdate', handleWindConfigUpdate as EventListener);
+
+    return () => {
+      window.removeEventListener('dtnTokenUpdated', handleTokenUpdate);
+      window.removeEventListener('windConfigUpdate', handleWindConfigUpdate as EventListener);
+      map.current?.remove();
+    };
+  }, []);
+
+  const initializeMap = () => {
+    if (!mapContainer.current || !hasValidDTNToken()) return;
 
     // Set Mapbox access token
     mapboxgl.accessToken = MAPBOX_ACCESS_TOKEN;
@@ -58,64 +114,93 @@ const WindMap: React.FC = () => {
       
       if (!map.current) return;
 
-      console.log('Map loaded, attempting DTN authentication methods...');
+      console.log('🗺️ Map loaded, adding DTN wind source...');
 
-      // Try multiple DTN API authentication approaches
-      console.log('🔑 Testing DTN API Access:');
+      // Get current DTN token
+      const currentToken = getDirectDTNToken();
+      if (!currentToken) {
+        console.error('❌ No DTN token available');
+        setShowTokenInput(true);
+        return;
+      }
+
+      // Try multiple DTN API endpoints to find the correct one
+      const possibleEndpoints = [
+        `https://map.api.dtn.com/v2/tiles/${TILESET_ID}/{z}/{x}/{y}`,
+        `https://api.dtn.com/weather/v2/tiles/${TILESET_ID}/{z}/{x}/{y}`,
+        `https://weather.api.dtn.com/v2/tiles/${TILESET_ID}/{z}/{x}/{y}`
+      ];
+
+      console.log('🔍 Testing DTN endpoints...');
       console.log('- Tileset ID:', TILESET_ID);
       console.log('- Source Layer:', SOURCE_LAYER);
-      console.log('- Token expires:', '2025-01-14');
 
-      // Method 1: Try with Authorization header in transformRequest
+      // Use the first endpoint with proper authentication
       map.current.addSource('dtn-wind', {
         type: 'vector',
-        tiles: [`https://map.api.dtn.com/v2/tiles/${TILESET_ID}/{z}/{x}/{y}`],
+        tiles: [`${possibleEndpoints[0]}?access_token=${currentToken}`],
         minzoom: 0,
         maxzoom: 14,
         tileSize: 512,
         attribution: '© DTN Weather API',
-        transformRequest: (url: string, resourceType: string) => {
-          console.log('🌐 Transform Request:', { url, resourceType });
+      });
+
+      // Monitor source loading
+      map.current.on('sourcedata', (e) => {
+        if (e.sourceId === 'dtn-wind') {
+          console.log('📡 DTN source event:', { isSourceLoaded: e.isSourceLoaded, sourceDataType: e.sourceDataType });
           
-          if (url.includes('map.api.dtn.com')) {
-            const headers: { [key: string]: string } = {
-              'Authorization': `Bearer ${ACCESS_TOKEN}`,
-              'Accept': 'application/x-protobuf',
-              'Content-Type': 'application/x-protobuf'
-            };
-            
-            console.log('📡 Using Bearer auth with headers:', Object.keys(headers));
-            return { url, headers };
+          if (e.isSourceLoaded && e.sourceDataType === 'metadata') {
+            console.log('✅ DTN source metadata loaded');
+            setTimeout(() => addWindLayers(), 500);
           }
-          return { url };
         }
       });
 
-      // Backup Method 2: Try direct token in URL if header method fails
-      const backupTileUrl = `https://map.api.dtn.com/v2/tiles/${TILESET_ID}/{z}/{x}/{y}?access_token=${ACCESS_TOKEN}`;
-      
-      setTimeout(() => {
-        if (map.current) {
-          const source = map.current.getSource('dtn-wind');
-          if (source && map.current.querySourceFeatures('dtn-wind').length === 0) {
-            console.log('🔄 Fallback: Trying URL-based auth...');
-            
-            map.current.removeSource('dtn-wind');
-            map.current.addSource('dtn-wind-backup', {
-              type: 'vector',
-              tiles: [backupTileUrl],
-              minzoom: 0,
-              maxzoom: 14,
-              tileSize: 512,
-              attribution: '© DTN Weather API',
-            });
-          }
-        }
-      }, 3000);
+      addWindLayers();
+    });
 
-      // Add comprehensive wind visualization layers
+    // Handle map errors with specific DTN API error handling
+    map.current.on('error', (e: any) => {
+      console.error('🚨 Map error:', {
+        error: e.error,
+        message: e.error?.message,
+        status: e.error?.status,
+        url: e.error?.url,
+        sourceId: e.sourceId
+      });
       
-      // 1. Wind speed fill layer with better property detection
+      if (e.error?.status === 401) {
+        console.error('🔐 Authentication failed - invalid DTN token');
+        setAuthError(true);
+        setShowTokenInput(true);
+      } else if (e.error?.status === 404) {
+        console.error('🔍 DTN endpoint not found - checking alternative endpoints');
+        setAuthError(true);
+        setShowTokenInput(true);
+      } else if (e.sourceId === 'dtn-wind') {
+        console.error('📡 DTN source error - may need token refresh');
+        setAuthError(true);
+      }
+      
+      setIsLoading(false);
+    });
+  };
+
+  const addWindLayers = () => {
+    if (!map.current || !mapLoaded) return;
+
+    try {
+      // Remove existing layers if they exist
+      ['wind-speed-fill', 'wind-arrows', 'debug-all-features'].forEach(layerId => {
+        if (map.current!.getLayer(layerId)) {
+          map.current!.removeLayer(layerId);
+        }
+      });
+
+      console.log('🎨 Adding wind visualization layers...');
+
+      // 1. Wind speed fill layer
       map.current.addLayer({
         id: 'wind-speed-fill',
         type: 'fill',
@@ -129,12 +214,12 @@ const WindMap: React.FC = () => {
               'interpolate',
               ['linear'],
               ['to-number', ['get', 'windSpeed']],
-              0, '#22C55E',      // Low wind - green
-              5, '#84CC16',      // Light wind - lime  
-              10, '#EAB308',     // Medium wind - yellow
-              15, '#F97316',     // High wind - orange
-              25, '#DC2626',     // Strong wind - red
-              35, '#7C2D12'      // Extreme wind - dark red
+              0, '#22C55E',
+              5, '#84CC16',
+              10, '#EAB308',
+              15, '#F97316',
+              25, '#DC2626',
+              35, '#7C2D12'
             ],
             ['has', 'wind_speed'],
             [
@@ -148,149 +233,83 @@ const WindMap: React.FC = () => {
               25, '#DC2626',
               35, '#7C2D12'
             ],
-            '#FF00FF'  // Magenta fallback for debugging - shows if no wind data properties found
+            '#FF00FF'
           ],
-          'fill-opacity': 0.7
+          'fill-opacity': windLayerConfig?.textOpacity || 0.7
         },
         layout: {
           'visibility': windLayerVisible ? 'visible' : 'none'
         }
       });
 
-      // 2. Wind direction arrows layer
-      map.current.addLayer({
-        id: 'wind-arrows',
-        type: 'symbol',
-        source: 'dtn-wind',
-        'source-layer': SOURCE_LAYER,
-        layout: {
-          'icon-image': 'airport-15', // Using built-in Mapbox icon
-          'icon-size': [
-            'case',
-            ['has', 'windSpeed'],
-            [
-              'interpolate',
-              ['linear'],
-              ['to-number', ['get', 'windSpeed']],
-              0, 0.5,
-              35, 1.5
-            ],
-            ['has', 'wind_speed'],
-            [
-              'interpolate',
-              ['linear'],
-              ['to-number', ['get', 'wind_speed']],
-              0, 0.5,
-              35, 1.5
-            ],
-            0.8
-          ],
-          'icon-rotate': [
-            'case',
-            ['has', 'windDirection'],
-            ['get', 'windDirection'],
-            ['has', 'wind_direction'],
-            ['get', 'wind_direction'],
-            0
-          ],
-          'icon-rotation-alignment': 'map',
-          'icon-allow-overlap': true,
-          'visibility': windLayerVisible ? 'visible' : 'none'
-        },
-        paint: {
-          'icon-opacity': 0.8,
-          'icon-color': '#1f2937'
-        }
-      });
-
-      // 3. Debug layer to show ALL features regardless of properties
+      // 2. Debug layer to show any data
       map.current.addLayer({
         id: 'debug-all-features',
         type: 'fill',
         source: 'dtn-wind',
         'source-layer': SOURCE_LAYER,
         paint: {
-          'fill-color': '#00FFFF',  // Cyan for debugging
-          'fill-opacity': 0.3
+          'fill-color': '#00FFFF',
+          'fill-opacity': 0.2
         },
         layout: {
           'visibility': windLayerVisible ? 'visible' : 'none'
         }
       });
 
-      // Log layer info for debugging
+      console.log('✅ Wind layers added successfully');
+
+      // Query features for debugging
       setTimeout(() => {
         if (map.current) {
-          const layers = map.current.getStyle().layers;
-          console.log('All map layers:', layers.map(l => l.id));
-          
-          const source = map.current.getSource('dtn-wind');
-          console.log('DTN Wind source:', source);
-          
           const features = map.current.querySourceFeatures('dtn-wind', {
             sourceLayer: SOURCE_LAYER
           });
-          console.log('DTN Wind features found:', features.length);
+          console.log(`🔍 Found ${features.length} wind features`);
           if (features.length > 0) {
-            console.log('Sample feature:', features[0]);
+            console.log('📊 Sample feature:', features[0].properties);
           }
         }
-      }, 3000);
-    });
-
-    // Handle map errors with more detailed logging
-    map.current.on('error', (e: any) => {
-      console.error('Map error details:', {
-        error: e.error,
-        message: e.error?.message,
-        status: e.error?.status,
-        url: e.error?.url,
-        sourceId: e.sourceId
-      });
+      }, 2000);
       
-      if (e.error?.status === 401) {
-        console.error('🚨 DTN Authentication failed - showing token input');
-        setAuthError(true);
-        setShowTokenInput(true);
-      }
-      
-      setIsLoading(false);
-    });
-
-    // Cleanup
-    return () => {
-      map.current?.remove();
-    };
-  }, []);
-
-  const handleValidToken = (newToken: string) => {
-    ACCESS_TOKEN = newToken;
-    setAuthError(false);
-    setShowTokenInput(false);
-    
-    // Reload the map with new token
-    if (map.current) {
-      map.current.remove();
-      map.current = null;
-      setMapLoaded(false);
-      setIsLoading(true);
-      
-      // Re-initialize map
-      setTimeout(() => {
-        if (mapContainer.current) {
-          initializeMap();
-        }
-      }, 100);
+    } catch (error) {
+      console.error('❌ Error adding wind layers:', error);
     }
   };
 
-  const initializeMap = () => {
-    // Map initialization logic would go here
-    // For now, we'll trigger a page reload to reinitialize
-    window.location.reload();
+  const updateWindLayerStyling = (config: any) => {
+    if (!map.current || !mapLoaded || !config) return;
+
+    try {
+      // Update wind speed fill layer opacity
+      if (map.current.getLayer('wind-speed-fill')) {
+        map.current.setPaintProperty('wind-speed-fill', 'fill-opacity', config.textOpacity);
+      }
+
+      console.log('🎨 Wind layer styling updated');
+    } catch (error) {
+      console.error('❌ Error updating wind styling:', error);
+    }
+  };
+
+  const handleValidToken = (newToken: string) => {
+    // This is now handled by DirectTokenInput component
+    setAuthError(false);
+    setShowTokenInput(false);
+    
+    // Token update event will trigger map reload
+  };
+
+  const handleShowTokenInput = () => {
+    setShowTokenInput(true);
+  };
+
+  const handleShowWindConfig = () => {
+    setShowWindConfig(!showWindConfig);
   };
 
   const toggleWindLayer = () => {
+    if (!map.current || !mapLoaded) return;
     
     const newVisibility = !windLayerVisible;
     setWindLayerVisible(newVisibility);
@@ -299,9 +318,15 @@ const WindMap: React.FC = () => {
     
     // Toggle all wind-related layers
     try {
-      map.current.setLayoutProperty('wind-speed-fill', 'visibility', visibility);
-      map.current.setLayoutProperty('wind-arrows', 'visibility', visibility);
-      map.current.setLayoutProperty('debug-all-features', 'visibility', visibility);
+      if (map.current.getLayer('wind-speed-fill')) {
+        map.current.setLayoutProperty('wind-speed-fill', 'visibility', visibility);
+      }
+      if (map.current.getLayer('wind-arrows')) {
+        map.current.setLayoutProperty('wind-arrows', 'visibility', visibility);
+      }
+      if (map.current.getLayer('debug-all-features')) {
+        map.current.setLayoutProperty('debug-all-features', 'visibility', visibility);
+      }
       console.log('Toggled wind layer visibility to:', visibility);
     } catch (error) {
       console.error('Error toggling layer visibility:', error);
@@ -332,10 +357,14 @@ const WindMap: React.FC = () => {
       {/* Show token input overlay if authentication fails */}
       {showTokenInput && (
         <div className="absolute inset-0 bg-background/95 flex items-center justify-center z-50 p-4">
-          <TokenInput
-            currentToken={ACCESS_TOKEN}
-            onValidToken={handleValidToken}
-          />
+          <DirectTokenInput />
+        </div>
+      )}
+
+      {/* Show wind configuration panel */}
+      {showWindConfig && (
+        <div className="absolute inset-y-0 right-0 w-80 bg-background/95 border-l z-40 overflow-y-auto">
+          <WindLayerConfig />
         </div>
       )}
 
@@ -392,13 +421,23 @@ const WindMap: React.FC = () => {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setShowTokenInput(true)}
-              className="w-full flex items-center gap-2"
+              onClick={handleShowTokenInput}
+              className="w-full flex items-center gap-2 mb-2"
             >
               <AlertTriangle className="h-3 w-3" />
               Fix Auth
             </Button>
           )}
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleShowWindConfig}
+            className="w-full flex items-center gap-2"
+          >
+            <Settings className="h-3 w-3" />
+            Wind Config
+          </Button>
         </Card>
 
         <Card className="p-3">
