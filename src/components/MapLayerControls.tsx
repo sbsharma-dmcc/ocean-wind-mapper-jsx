@@ -18,7 +18,7 @@ const MapLayerControls: React.FC<MapLayerControlsProps> = ({
 
   return (
     <div className="absolute top-32 left-4 z-20 bg-white rounded-lg shadow-lg p-4 min-w-[200px] animate-fade-in">
-      <h3 className="text-sm font-semibold mb-3">DTN Weather Layers</h3>
+      <h3 className="text-sm font-semibold mb-3">Wind Layer</h3>
       {Object.keys(dtnOverlays).map((overlay) => (
         <div
           key={overlay}
@@ -38,7 +38,7 @@ const MapLayerControls: React.FC<MapLayerControlsProps> = ({
           onClick={onRemoveAllOverlays}
           className="w-full mt-2 p-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors hover-scale"
         >
-          Remove All Layers ({activeOverlays.length})
+          Remove Wind Layer
         </button>
       )}
     </div>

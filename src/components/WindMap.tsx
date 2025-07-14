@@ -57,7 +57,7 @@ const MapboxMap: React.FC<MapboxMapProps> = ({
         onClick={() => setShowLayers(!showLayers)}
         className="absolute top-20 left-4 z-20 bg-white rounded-lg shadow-lg p-3 hover:bg-gray-50 transition-colors hover-scale"
       >
-        Toggle DTN Layers
+        Toggle Wind Layer
       </button>
 
       <MapLayerControls

@@ -82,22 +82,7 @@ export const animateSwell = (map: mapboxgl.Map, layerConfigs: any) => {
 export const applyLayerConfiguration = (map: mapboxgl.Map, layerType: string, config: any, layerConfigs: any) => {
   if (!map || !map.isStyleLoaded()) return;
   
-  if (layerType === 'pressure') {
-    updateLayerProperties(map, layerType, {
-      'line-width': config.contourWidth || 1,
-      'line-opacity': config.contourOpacity || 0.8,
-      'line-color': [
-        'interpolate',
-        ['linear'],
-        ['to-number', ['get', 'value'], 1013],
-        980, config.lowPressureColor,
-        1000, config.lowPressureColor,
-        1013, config.mediumPressureColor,
-        1030, config.highPressureColor,
-        1050, config.highPressureColor
-      ]
-    });
-  } else if (layerType === 'wind') {
+  if (layerType === 'wind') {
     updateLayerProperties(map, layerType, {
       'text-color': config.textColor,
       'text-opacity': config.textOpacity,
@@ -109,41 +94,6 @@ export const applyLayerConfiguration = (map: mapboxgl.Map, layerType: string, co
       'text-size': config.textSize,
       'text-allow-overlap': config.allowOverlap,
       'symbol-spacing': config.symbolSpacing
-    });
-  } else if (layerType === 'swell') {
-    const colorExpression: any[] = [
-      'interpolate',
-      ['exponential', 1.5],
-      ['to-number', ['get', 'value'], 0]
-    ];
-
-    layerConfigs.swell.gradient.forEach((item: any) => {
-      const heightValue = parseFloat(item.value.replace('m', '').replace('+', ''));
-      colorExpression.push(heightValue, item.color);
-    });
-
-    updateLayerProperties(map, layerType, {
-      'fill-color': colorExpression,
-      'fill-opacity': config.fillOpacity,
-      'fill-outline-color': config.fillOutlineColor,
-      'fill-antialias': config.fillAntialias
-    });
-  } else if (layerType === 'symbol') {
-    const symbolText = getSymbolByType(config.symbolType, config.customSymbol);
-    
-    updateLayerProperties(map, layerType, {
-      'text-color': config.textColor,
-      'text-opacity': config.textOpacity,
-      'text-halo-color': config.haloColor,
-      'text-halo-width': config.haloWidth
-    });
-    
-    updateLayoutProperties(map, layerType, {
-      'text-size': config.textSize,
-      'text-allow-overlap': config.allowOverlap,
-      'symbol-spacing': config.symbolSpacing,
-      'text-rotation-alignment': config.rotationAlignment,
-      'text-field': symbolText
     });
   }
 };

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import mapboxgl from 'mapbox-gl';
 import { useToast } from '@/hooks/use-toast';
 import { dtnOverlays, fetchDTNSourceLayer, createTileURL } from '@/utils/dtnLayerHelpers';
-import { applyLayerConfiguration, animateSwell, getSymbolByType } from '@/utils/layerConfigHelpers';
+import { applyLayerConfiguration } from '@/utils/layerConfigHelpers';
 
 export const useDTNLayers = (map: mapboxgl.Map | null, layerConfigs: any, activeLayers?: Record<string, boolean>) => {
   const [activeOverlays, setActiveOverlays] = useState<string[]>([]);
@@ -76,111 +76,8 @@ export const useDTNLayers = (map: mapboxgl.Map | null, layerConfigs: any, active
 
         let beforeId = undefined;
 
-        if (overlay === 'pressure') {
-          const config = layerConfigs.pressure;
-          map.addLayer({
-            id: layerId,
-            type: "line",
-            source: sourceId,
-            "source-layer": sourceLayer,
-            paint: {
-              "line-color": [
-                'interpolate',
-                ['linear'],
-                ['to-number', ['get', 'value'], 1013],
-                980, config.lowPressureColor,
-                1000, config.lowPressureColor,
-                1013, config.mediumPressureColor,
-                1030, config.highPressureColor,
-                1050, config.highPressureColor
-              ],
-              "line-width": [
-                'interpolate',
-                ['linear'],
-                ['zoom'],
-                0, config.contourWidth,
-                6, config.contourWidth * 1.5,
-                10, config.contourWidth * 2,
-                14, config.contourWidth * 3
-              ],
-              "line-opacity": config.contourOpacity
-            },
-            layout: {
-              "visibility": "visible",
-              "line-cap": "round",
-              "line-join": "round"
-            }
-          }, beforeId);
-
-        } else if (overlay === 'pressure-gradient') {
-          map.addLayer({
-            id: layerId,
-            type: "heatmap",
-            source: sourceId,
-            "source-layer": sourceLayer,
-            paint: {
-              "heatmap-color": [
-                'interpolate',
-                ['linear'],
-                ['heatmap-density'],
-                0, 'rgba(128, 0, 128, 0)',
-                0.1, 'rgba(128, 0, 128, 0.2)',
-                0.2, 'rgba(0, 0, 255, 0.3)',
-                0.3, 'rgba(0, 128, 255, 0.4)',
-                0.4, 'rgba(0, 255, 255, 0.5)',
-                0.5, 'rgba(128, 255, 128, 0.4)',
-                0.6, 'rgba(255, 255, 0, 0.5)',
-                0.7, 'rgba(255, 128, 0, 0.6)',
-                0.8, 'rgba(255, 0, 0, 0.7)',
-                1, 'rgba(128, 0, 0, 0.8)'
-              ],
-              "heatmap-radius": [
-                'interpolate',
-                ['exponential', 2],
-                ['zoom'],
-                0, layerConfigs.pressure.heatmapRadius,
-                6, layerConfigs.pressure.heatmapRadius * 2,
-                10, layerConfigs.pressure.heatmapRadius * 4,
-                14, layerConfigs.pressure.heatmapRadius * 6
-              ],
-              "heatmap-intensity": layerConfigs.pressure.heatmapIntensity,
-              "heatmap-opacity": layerConfigs.pressure.fillOpacity
-            },
-            layout: {
-              "visibility": "visible"
-            }
-          }, beforeId);
-
-        } else if (overlay === 'swell') {
-          const colorExpression = [
-            'interpolate',
-            ['exponential', 1.5],
-            ['to-number', ['get', 'value'], 0]
-          ] as any;
-
-          layerConfigs.swell.gradient.forEach((item) => {
-            const heightValue = parseFloat(item.value.replace('m', '').replace('+', ''));
-            colorExpression.push(heightValue, item.color);
-          });
-
-          map.addLayer({
-            id: layerId,
-            type: "fill",
-            source: sourceId,
-            "source-layer": sourceLayer,
-            paint: {
-              "fill-color": colorExpression,
-              "fill-opacity": layerConfigs.swell.fillOpacity,
-              "fill-outline-color": layerConfigs.swell.fillOutlineColor,
-              "fill-antialias": true
-            },
-            layout: {
-              "visibility": "visible"
-            }
-          }, beforeId);
-          
-          setTimeout(() => animateSwell(map, layerConfigs), 100);
-        } else if (overlay === 'wind') {
+        // Only handle wind layer
+        if (overlay === 'wind') {
           map.addLayer({
             id: layerId,
             type: "symbol",
@@ -232,38 +129,6 @@ export const useDTNLayers = (map: mapboxgl.Map | null, layerConfigs: any, active
               "text-opacity": layerConfigs.wind.textOpacity,
               "text-halo-color": layerConfigs.wind.haloColor,
               "text-halo-width": layerConfigs.wind.haloWidth
-            },
-          }, beforeId);
-        } else if (overlay === 'symbol') {
-          const symbolConfig = layerConfigs.symbol;
-          const symbolText = getSymbolByType(symbolConfig.symbolType, symbolConfig.customSymbol);
-          
-          map.addLayer({
-            id: layerId,
-            type: "symbol",
-            source: sourceId,
-            "source-layer": sourceLayer,
-            layout: {
-              "text-field": symbolText,
-              "text-size": symbolConfig.textSize,
-              "text-rotation-alignment": symbolConfig.rotationAlignment,
-              "text-rotate": [
-                "case",
-                ["has", "direction"],
-                ["get", "direction"],
-                ["has", "value1"], 
-                ["get", "value1"],
-                0
-              ],
-              "text-allow-overlap": symbolConfig.allowOverlap,
-              "text-ignore-placement": true,
-              "symbol-spacing": symbolConfig.symbolSpacing
-            },
-            paint: {
-              "text-color": symbolConfig.textColor,
-              "text-opacity": symbolConfig.textOpacity,
-              "text-halo-color": symbolConfig.haloColor,
-              "text-halo-width": symbolConfig.haloWidth
             },
           }, beforeId);
         }
