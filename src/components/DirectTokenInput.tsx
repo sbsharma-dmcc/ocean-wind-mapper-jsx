@@ -23,12 +23,14 @@ const DirectTokenInput: React.FC = () => {
     setTokenInput('');
     
     toast({
-      title: "Token Set",
-      description: "DTN token has been set successfully"
+      title: "Token Set Successfully",
+      description: "Initializing wind layer with new DTN token..."
     });
 
-    // Trigger map refresh
-    window.dispatchEvent(new CustomEvent('dtnTokenUpdated'));
+    // Trigger map refresh - this will hide the modal and apply wind layers
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('dtnTokenUpdated'));
+    }, 500);
   };
 
   const handleClearToken = () => {

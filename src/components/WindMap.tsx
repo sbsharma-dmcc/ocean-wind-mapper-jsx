@@ -44,23 +44,30 @@ const WindMap: React.FC = () => {
     // Listen for token updates
     const handleTokenUpdate = () => {
       console.log('🔄 DTN token updated, reinitializing map');
+      
+      // Immediately hide token input and show loading
+      setShowTokenInput(false);
+      setAuthError(false);
+      setIsLoading(true);
+      
+      // Clean up existing map
       if (map.current) {
         map.current.remove();
         map.current = null;
       }
       setMapLoaded(false);
-      setIsLoading(true);
-      setAuthError(false);
-      setShowTokenInput(false);
       
+      // Reinitialize with new token after a short delay
       setTimeout(() => {
         if (hasValidDTNToken()) {
+          console.log('✅ Valid token found, initializing map with wind layers');
           initializeMap();
         } else {
+          console.log('❌ No valid token, showing token input again');
           setShowTokenInput(true);
           setIsLoading(false);
         }
-      }, 100);
+      }, 300);
     };
 
     // Listen for wind config updates
@@ -107,57 +114,26 @@ const WindMap: React.FC = () => {
     // Add fullscreen control
     map.current.addControl(new mapboxgl.FullscreenControl(), 'top-right');
 
+    console.log('🗺️ Map initialized, waiting for load event...');
+
     // Map load event
     map.current.on('load', () => {
+      console.log('🗺️ Map loaded successfully! Adding DTN wind source...');
       setIsLoading(false);
       setMapLoaded(true);
       
       if (!map.current) return;
 
-      console.log('🗺️ Map loaded, adding DTN wind source...');
-
       // Get current DTN token
       const currentToken = getDirectDTNToken();
       if (!currentToken) {
-        console.error('❌ No DTN token available');
+        console.error('❌ No DTN token available after map load');
         setShowTokenInput(true);
         return;
       }
 
-      // Try multiple DTN API endpoints to find the correct one
-      const possibleEndpoints = [
-        `https://map.api.dtn.com/v2/tiles/${TILESET_ID}/{z}/{x}/{y}`,
-        `https://api.dtn.com/weather/v2/tiles/${TILESET_ID}/{z}/{x}/{y}`,
-        `https://weather.api.dtn.com/v2/tiles/${TILESET_ID}/{z}/{x}/{y}`
-      ];
-
-      console.log('🔍 Testing DTN endpoints...');
-      console.log('- Tileset ID:', TILESET_ID);
-      console.log('- Source Layer:', SOURCE_LAYER);
-
-      // Use the first endpoint with proper authentication
-      map.current.addSource('dtn-wind', {
-        type: 'vector',
-        tiles: [`${possibleEndpoints[0]}?access_token=${currentToken}`],
-        minzoom: 0,
-        maxzoom: 14,
-        tileSize: 512,
-        attribution: '© DTN Weather API',
-      });
-
-      // Monitor source loading
-      map.current.on('sourcedata', (e) => {
-        if (e.sourceId === 'dtn-wind') {
-          console.log('📡 DTN source event:', { isSourceLoaded: e.isSourceLoaded, sourceDataType: e.sourceDataType });
-          
-          if (e.isSourceLoaded && e.sourceDataType === 'metadata') {
-            console.log('✅ DTN source metadata loaded');
-            setTimeout(() => addWindLayers(), 500);
-          }
-        }
-      });
-
-      addWindLayers();
+      console.log('🔑 Using DTN token for wind layer initialization');
+      addDTNWindSource(currentToken);
     });
 
     // Handle map errors with specific DTN API error handling
@@ -185,6 +161,48 @@ const WindMap: React.FC = () => {
       
       setIsLoading(false);
     });
+  };
+
+  const addDTNWindSource = (token: string) => {
+    if (!map.current) return;
+
+    console.log('📡 Adding DTN wind source with authentication...');
+
+    // Try multiple DTN API endpoints to find the correct one
+    const possibleEndpoints = [
+      `https://map.api.dtn.com/v2/tiles/${TILESET_ID}/{z}/{x}/{y}`,
+      `https://api.dtn.com/weather/v2/tiles/${TILESET_ID}/{z}/{x}/{y}`,
+      `https://weather.api.dtn.com/v2/tiles/${TILESET_ID}/{z}/{x}/{y}`
+    ];
+
+    console.log('🔍 Testing DTN endpoints...');
+    console.log('- Tileset ID:', TILESET_ID);
+    console.log('- Source Layer:', SOURCE_LAYER);
+
+    // Use the first endpoint with proper authentication
+    map.current.addSource('dtn-wind', {
+      type: 'vector',
+      tiles: [`${possibleEndpoints[0]}?access_token=${token}`],
+      minzoom: 0,
+      maxzoom: 14,
+      tileSize: 512,
+      attribution: '© DTN Weather API',
+    });
+
+    // Monitor source loading and add layers when ready
+    map.current.on('sourcedata', (e) => {
+      if (e.sourceId === 'dtn-wind') {
+        console.log('📡 DTN source event:', { isSourceLoaded: e.isSourceLoaded, sourceDataType: e.sourceDataType });
+        
+        if (e.isSourceLoaded && e.sourceDataType === 'metadata') {
+          console.log('✅ DTN source metadata loaded, adding wind layers...');
+          setTimeout(() => addWindLayers(), 500);
+        }
+      }
+    });
+
+    // Also add layers immediately as fallback
+    setTimeout(() => addWindLayers(), 1000);
   };
 
   const addWindLayers = () => {
@@ -355,7 +373,7 @@ const WindMap: React.FC = () => {
   return (
     <div className="relative w-full h-screen">
       {/* Show token input overlay if authentication fails */}
-      {showTokenInput && (
+      {showTokenInput && !hasValidDTNToken() && (
         <div className="absolute inset-0 bg-background/95 flex items-center justify-center z-50 p-4">
           <DirectTokenInput />
         </div>
