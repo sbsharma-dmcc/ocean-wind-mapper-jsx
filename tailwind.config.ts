@@ -52,6 +52,17 @@ export default {
 					DEFAULT: 'hsl(var(--card))',
 					foreground: 'hsl(var(--card-foreground))'
 				},
+				wind: {
+					low: 'hsl(var(--wind-low))',
+					medium: 'hsl(var(--wind-medium))',
+					high: 'hsl(var(--wind-high))',
+					extreme: 'hsl(var(--wind-extreme))'
+				},
+				ocean: {
+					primary: 'hsl(var(--ocean-primary))',
+					secondary: 'hsl(var(--ocean-secondary))'
+				},
+				'map-overlay': 'hsl(var(--map-overlay))',
 				sidebar: {
 					DEFAULT: 'hsl(var(--sidebar-background))',
 					foreground: 'hsl(var(--sidebar-foreground))',
