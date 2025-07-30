@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import mapboxgl from 'mapbox-gl';
 import { useToast } from '@/hooks/use-toast';
 import { dtnOverlays, fetchDTNSourceLayer, createTileURL, createDTNTransformRequest } from '@/utils/dtnLayerHelpers';
-import { createWindBarbImages } from '@/utils/windBarbSvg';
 import { applyLayerConfiguration } from '@/utils/layerConfigHelpers';
+import { createMockWindLayer } from '@/utils/mockWindData';
 
 export const useDTNLayers = (map: mapboxgl.Map | null, layerConfigs: any, activeLayers?: Record<string, boolean>) => {
   const [activeOverlays, setActiveOverlays] = useState<string[]>([]);
@@ -62,9 +62,22 @@ export const useDTNLayers = (map: mapboxgl.Map | null, layerConfigs: any, active
     try {
       console.log(`Adding overlay details:`, { overlay, dtnLayerId, tileSetId, sourceId, layerId });
       
+      // For testing, add mock wind data first
+      if (overlay === 'wind') {
+        console.log('Adding mock wind layer for testing...');
+        createMockWindLayer(map);
+        setActiveOverlays(prev => [...prev, overlay]);
+        toast({
+          title: "Mock Wind Layer Added",
+          description: "Mock wind data is now visible for testing"
+        });
+        return;
+      }
+      
       const sourceLayer = await fetchDTNSourceLayer(dtnLayerId);
       const tileURL = createTileURL(dtnLayerId, tileSetId);
       console.log(`Tile URL: ${tileURL}`);
+      console.log(`Source layer: ${sourceLayer}`);
       
       if (!map.getSource(sourceId)) {
         console.log(`Adding source: ${sourceId}`);
@@ -183,6 +196,16 @@ export const useDTNLayers = (map: mapboxgl.Map | null, layerConfigs: any, active
 
   const removeOverlay = (overlay: string) => {
     if (!map || !map.isStyleLoaded()) return;
+
+    // Remove mock layer if it exists
+    if (overlay === 'wind') {
+      if (map.getLayer('mock-wind-layer')) {
+        map.removeLayer('mock-wind-layer');
+      }
+      if (map.getSource('mock-wind-source')) {
+        map.removeSource('mock-wind-source');
+      }
+    }
 
     const sourceId = `dtn-source-${overlay}`;
     const layerId = `dtn-layer-${overlay}`;
