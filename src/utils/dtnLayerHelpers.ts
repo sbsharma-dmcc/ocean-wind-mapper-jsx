@@ -1,7 +1,7 @@
 import { getDirectDTNToken } from './dtnTokenManager';
 
 export const dtnOverlays = {
-  wind: { dtnLayerId: 'fcst-manta-wind-speed-contours', tileSetId: 'b864ff86-22af-41fc-963e-38837d457566' }
+  wind: { dtnLayerId: 'fcst-manta-wind-symbol', tileSetId: 'b864ff86-22af-41fc-963e-38837d457566' }
 };
 
 export const fetchDTNSourceLayer = async (layerId: string) => {
