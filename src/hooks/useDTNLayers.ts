@@ -146,8 +146,8 @@ export const useDTNLayers = (map: mapboxgl.Map | null, layerConfigs: any, active
         map.addSource(sourceId, {
           type: "vector",
           tiles: [tileURL],
-          minzoom: 0,
-          maxzoom: 14,
+          minzoom: 2,
+          maxzoom: 10,
         });
         
         console.log('DTN source added successfully');
