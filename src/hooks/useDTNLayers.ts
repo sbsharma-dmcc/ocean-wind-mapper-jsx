@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import mapboxgl from 'mapbox-gl';
 import { useToast } from '@/hooks/use-toast';
 import { dtnOverlays, fetchDTNSourceLayer, createTileURL, createDTNTransformRequest } from '@/utils/dtnLayerHelpers';
+import { createWindBarbImages } from '@/utils/windBarbSvg';
 import { applyLayerConfiguration } from '@/utils/layerConfigHelpers';
 
 export const useDTNLayers = (map: mapboxgl.Map | null, layerConfigs: any, activeLayers?: Record<string, boolean>) => {
@@ -80,54 +81,14 @@ export const useDTNLayers = (map: mapboxgl.Map | null, layerConfigs: any, active
           (map as any)._dtnTransformSet = true;
         }
 
-        // Load DTN sprite for wind barbs
+        // Load custom wind barb SVGs
         if (overlay === 'wind') {
-          const spriteUrl = "https://map.api.dtn.com/static/sprite/wind-barbs";
-          
-          // Load the sprite JSON and PNG
-          Promise.all([
-            fetch(`${spriteUrl}.json`).then(res => res.json()),
-            new Promise<HTMLImageElement>((resolve, reject) => {
-              map.loadImage(`${spriteUrl}.png`, (error, image) => {
-                if (error) reject(error);
-                else resolve(image as HTMLImageElement);
-              });
-            })
-          ]).then(([spriteData, spriteImage]) => {
-            // Add all sprite images from the DTN sprite
-            Object.keys(spriteData).forEach(iconName => {
-              if (!map.hasImage(iconName)) {
-                const iconData = spriteData[iconName];
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d')!;
-                
-                canvas.width = iconData.width;
-                canvas.height = iconData.height;
-                
-                ctx.drawImage(
-                  spriteImage,
-                  iconData.x, iconData.y, iconData.width, iconData.height,
-                  0, 0, iconData.width, iconData.height
-                );
-                
-                // Get image data from canvas
-                const imageData = ctx.getImageData(0, 0, iconData.width, iconData.height);
-                map.addImage(iconName, {
-                  width: iconData.width,
-                  height: iconData.height,
-                  data: new Uint8Array(imageData.data.buffer)
-                });
-              }
-            });
-            console.log('DTN wind barb sprites loaded successfully');
-          }).catch(error => {
-            console.warn('Could not load DTN sprites:', error);
-          });
+          createWindBarbImages(map);
         }
 
         let beforeId = undefined;
 
-        // Only handle wind layer
+        // Add wind layer with custom SVG barbs
         if (overlay === 'wind') {
           map.addLayer({
             id: layerId,
@@ -137,165 +98,33 @@ export const useDTNLayers = (map: mapboxgl.Map | null, layerConfigs: any, active
             layout: {
               "icon-image": [
                 "case",
+                ["<", ["coalesce", ["get", "windSpeedStyle"], ["get", "value"]], 2.5],
+                "wind-barb-0",
                 [
-                  "<",
+                  "concat",
+                  "wind-barb-",
                   [
-                    "coalesce",
-                    ["get", "windSpeedStyle"],
-                    ["get", "value"]
-                  ],
-                  2.5
-                ],
-                "wind-arrow-calm-00",
-                [
-                  "case",
-                  [
-                    "==",
+                    "*",
+                    5,
                     [
-                      "coalesce",
-                      ["get", "isNorthernHemisphereStyle"],
-                      ["get", "isNorth"]
-                    ],
-                    true
-                  ],
-                  [
-                    "case",
-                    [
-                      "<",
+                      "round",
                       [
-                        "coalesce",
-                        ["get", "windSpeedStyle"],
-                        ["get", "value"]
-                      ],
-                      47.5
-                    ],
-                    [
-                      "concat",
-                      "wind-arrow-nh-0",
-                      [
-                        "ceil",
-                        [
-                          "/",
-                          [
-                            "-",
-                            [
-                              "coalesce",
-                              ["get", "windSpeedStyle"],
-                              ["get", "value"]
-                            ],
-                            2.49999
-                          ],
-                          5
-                        ]
-                      ]
-                    ],
-                    [
-                      "concat",
-                      "wind-arrow-nh-",
-                      [
-                        "ceil",
-                        [
-                          "/",
-                          [
-                            "-",
-                            [
-                              "coalesce",
-                              ["get", "windSpeedStyle"],
-                              ["get", "value"]
-                            ],
-                            2.49999
-                          ],
-                          5
-                        ]
-                      ]
-                    ]
-                  ],
-                  [
-                    "case",
-                    [
-                      "<",
-                      [
-                        "coalesce",
-                        ["get", "windSpeedStyle"],
-                        ["get", "value"]
-                      ],
-                      47.5
-                    ],
-                    [
-                      "concat",
-                      "wind-arrow-sh-0",
-                      [
-                        "ceil",
-                        [
-                          "/",
-                          [
-                            "-",
-                            [
-                              "coalesce",
-                              ["get", "windSpeedStyle"],
-                              ["get", "value"]
-                            ],
-                            2.49999
-                          ],
-                          5
-                        ]
-                      ]
-                    ],
-                    [
-                      "concat",
-                      "wind-arrow-sh-",
-                      [
-                        "ceil",
-                        [
-                          "/",
-                          [
-                            "-",
-                            [
-                              "coalesce",
-                              ["get", "windSpeedStyle"],
-                              ["get", "value"]
-                            ],
-                            2.49999
-                          ],
-                          5
-                        ]
+                        "/",
+                        ["coalesce", ["get", "windSpeedStyle"], ["get", "value"]],
+                        5
                       ]
                     ]
                   ]
                 ]
               ],
               "icon-rotate": [
-                "case",
-                [
-                  "==",
-                  [
-                    "coalesce",
-                    ["get", "isNorthernHemisphereStyle"],
-                    ["get", "isNorth"]
-                  ],
-                  true
-                ],
-                [
-                  "+",
-                  [
-                    "coalesce",
-                    ["get", "windDirectionStyle"],
-                    ["get", "value1"]
-                  ],
-                  90
-                ],
-                [
-                  "+",
-                  [
-                    "coalesce",
-                    ["get", "windDirectionStyle"],
-                    ["get", "value1"]
-                  ],
-                  270
-                ]
+                "+",
+                ["coalesce", ["get", "windDirectionStyle"], ["get", "value1"]],
+                0
               ],
-              "icon-size": 0.35,
-              "icon-allow-overlap": false
+              "icon-size": 0.8,
+              "icon-allow-overlap": true,
+              "icon-ignore-placement": true
             }
           }, beforeId);
         }
