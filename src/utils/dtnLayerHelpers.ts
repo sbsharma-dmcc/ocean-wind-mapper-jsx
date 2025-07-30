@@ -33,9 +33,22 @@ export const fetchDTNSourceLayer = async (layerId: string) => {
 };
 
 export const createTileURL = (dtnLayerId: string, tileSetId: string) => {
-  const token = getDirectDTNToken();
-  if (!token) throw new Error('No DTN token available');
-  
-  const authToken = token.replace('Bearer ', '');
-  return `https://map.api.dtn.com/v2/tiles/${dtnLayerId}/${tileSetId}/{z}/{x}/{y}.pbf?token=${authToken}`;
+  return `https://map.api.dtn.com/v2/tiles/${dtnLayerId}/${tileSetId}/{z}/{x}/{y}.pbf`;
+};
+
+export const createDTNTransformRequest = () => {
+  return (url: string, resourceType: string) => {
+    if (url.includes('map.api.dtn.com')) {
+      const token = getDirectDTNToken();
+      if (token) {
+        return {
+          url: url,
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        };
+      }
+    }
+    return { url };
+  };
 };
