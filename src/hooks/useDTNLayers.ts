@@ -74,6 +74,19 @@ export const useDTNLayers = (map: mapboxgl.Map | null, layerConfigs: any, active
           maxzoom: 14,
         });
 
+        // Add wind barbs sprite if needed
+        if (overlay === 'wind') {
+          // Load the wind barbs sprite from DTN
+          const spriteUrl = "https://map.api.dtn.com/static/sprite/wind-barbs";
+          map.loadImage(`${spriteUrl}.png`, (error, image) => {
+            if (error) {
+              console.warn('Could not load wind barbs sprite, falling back to text symbols');
+            } else if (image) {
+              map.addImage('wind-barbs-sprite', image);
+            }
+          });
+        }
+
         let beforeId = undefined;
 
         // Only handle wind layer
@@ -84,21 +97,167 @@ export const useDTNLayers = (map: mapboxgl.Map | null, layerConfigs: any, active
             source: sourceId,
             "source-layer": sourceLayer,
             layout: {
-              "text-field": "→",
-              "text-size": 16,
-              "text-allow-overlap": true,
-              "text-ignore-placement": false,
-              "text-rotate": [
-                "coalesce",
-                ["get", "windDirectionStyle"],
-                ["get", "value1"],
-                0
-              ]
-            },
-            paint: {
-              "text-color": "#ffffff",
-              "text-halo-color": "#000000",
-              "text-halo-width": 1
+              "icon-image": [
+                "case",
+                [
+                  "<",
+                  [
+                    "coalesce",
+                    ["get", "windSpeedStyle"],
+                    ["get", "value"]
+                  ],
+                  2.5
+                ],
+                "wind-arrow-calm-00",
+                [
+                  "case",
+                  [
+                    "==",
+                    [
+                      "coalesce",
+                      ["get", "isNorthernHemisphereStyle"],
+                      ["get", "isNorth"]
+                    ],
+                    true
+                  ],
+                  [
+                    "case",
+                    [
+                      "<",
+                      [
+                        "coalesce",
+                        ["get", "windSpeedStyle"],
+                        ["get", "value"]
+                      ],
+                      47.5
+                    ],
+                    [
+                      "concat",
+                      "wind-arrow-nh-0",
+                      [
+                        "ceil",
+                        [
+                          "/",
+                          [
+                            "-",
+                            [
+                              "coalesce",
+                              ["get", "windSpeedStyle"],
+                              ["get", "value"]
+                            ],
+                            2.49999
+                          ],
+                          5
+                        ]
+                      ]
+                    ],
+                    [
+                      "concat",
+                      "wind-arrow-nh-",
+                      [
+                        "ceil",
+                        [
+                          "/",
+                          [
+                            "-",
+                            [
+                              "coalesce",
+                              ["get", "windSpeedStyle"],
+                              ["get", "value"]
+                            ],
+                            2.49999
+                          ],
+                          5
+                        ]
+                      ]
+                    ]
+                  ],
+                  [
+                    "case",
+                    [
+                      "<",
+                      [
+                        "coalesce",
+                        ["get", "windSpeedStyle"],
+                        ["get", "value"]
+                      ],
+                      47.5
+                    ],
+                    [
+                      "concat",
+                      "wind-arrow-sh-0",
+                      [
+                        "ceil",
+                        [
+                          "/",
+                          [
+                            "-",
+                            [
+                              "coalesce",
+                              ["get", "windSpeedStyle"],
+                              ["get", "value"]
+                            ],
+                            2.49999
+                          ],
+                          5
+                        ]
+                      ]
+                    ],
+                    [
+                      "concat",
+                      "wind-arrow-sh-",
+                      [
+                        "ceil",
+                        [
+                          "/",
+                          [
+                            "-",
+                            [
+                              "coalesce",
+                              ["get", "windSpeedStyle"],
+                              ["get", "value"]
+                            ],
+                            2.49999
+                          ],
+                          5
+                        ]
+                      ]
+                    ]
+                  ]
+                ]
+              ],
+              "icon-rotate": [
+                "case",
+                [
+                  "==",
+                  [
+                    "coalesce",
+                    ["get", "isNorthernHemisphereStyle"],
+                    ["get", "isNorth"]
+                  ],
+                  true
+                ],
+                [
+                  "+",
+                  [
+                    "coalesce",
+                    ["get", "windDirectionStyle"],
+                    ["get", "value1"]
+                  ],
+                  90
+                ],
+                [
+                  "+",
+                  [
+                    "coalesce",
+                    ["get", "windDirectionStyle"],
+                    ["get", "value1"]
+                  ],
+                  270
+                ]
+              ],
+              "icon-size": 0.35,
+              "icon-allow-overlap": false
             }
           }, beforeId);
         }
