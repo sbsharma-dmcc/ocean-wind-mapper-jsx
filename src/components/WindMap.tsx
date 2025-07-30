@@ -30,6 +30,7 @@ const MapboxMap: React.FC<MapboxMapProps> = ({
   activeBaseLayer = 'default'
 }) => {
   const [showLayers, setShowLayers] = useState(false);
+  const [showTokenInput, setShowTokenInput] = useState(false);
   const [mapVessels, setMapVessels] = useState<any[]>([]);
   
   // Custom hooks for modular functionality
@@ -50,8 +51,15 @@ const MapboxMap: React.FC<MapboxMapProps> = ({
   return (
     <div className="relative h-full w-full">
       <MapTopControls />
-      <DirectTokenInput />
+      {showTokenInput && <DirectTokenInput />}
       <div ref={mapContainerRef} className="absolute inset-0" />
+
+      <button
+        onClick={() => setShowTokenInput(!showTokenInput)}
+        className="absolute top-4 left-4 z-20 bg-white rounded-lg shadow-lg p-3 hover:bg-gray-50 transition-colors hover-scale"
+      >
+        🔑 Set Token
+      </button>
 
       <button
         onClick={() => setShowLayers(!showLayers)}
