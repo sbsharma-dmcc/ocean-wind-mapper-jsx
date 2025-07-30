@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import mapboxgl from 'mapbox-gl';
 import { useToast } from '@/hooks/use-toast';
-import { dtnOverlays, fetchDTNSourceLayer, createTileURL, createDTNTransformRequest } from '@/utils/dtnLayerHelpers';
+import { dtnOverlays, fetchDTNSourceLayer, createTileURL } from '@/utils/dtnLayerHelpers';
 import { applyLayerConfiguration } from '@/utils/layerConfigHelpers';
 import { createMockWindLayer } from '@/utils/mockWindData';
 
@@ -75,12 +75,8 @@ export const useDTNLayers = (map: mapboxgl.Map | null, layerConfigs: any, active
           minzoom: 0,
           maxzoom: 14,
         });
-
-        // Set transform request for DTN authentication
-        if (!(map as any)._dtnTransformSet) {
-          (map as any).setTransformRequest(createDTNTransformRequest());
-          (map as any)._dtnTransformSet = true;
-        }
+        
+        console.log('DTN source added successfully');
 
         // Create wind barb icons for DTN data
         if (overlay === 'wind') {
