@@ -74,16 +74,48 @@ export const useDTNLayers = (map: mapboxgl.Map | null, layerConfigs: any, active
           maxzoom: 14,
         });
 
-        // Add wind barbs sprite if needed
+        // Load DTN sprite for wind barbs
         if (overlay === 'wind') {
-          // Load the wind barbs sprite from DTN
           const spriteUrl = "https://map.api.dtn.com/static/sprite/wind-barbs";
-          map.loadImage(`${spriteUrl}.png`, (error, image) => {
-            if (error) {
-              console.warn('Could not load wind barbs sprite, falling back to text symbols');
-            } else if (image) {
-              map.addImage('wind-barbs-sprite', image);
-            }
+          
+          // Load the sprite JSON and PNG
+          Promise.all([
+            fetch(`${spriteUrl}.json`).then(res => res.json()),
+            new Promise<HTMLImageElement>((resolve, reject) => {
+              map.loadImage(`${spriteUrl}.png`, (error, image) => {
+                if (error) reject(error);
+                else resolve(image as HTMLImageElement);
+              });
+            })
+          ]).then(([spriteData, spriteImage]) => {
+            // Add all sprite images from the DTN sprite
+            Object.keys(spriteData).forEach(iconName => {
+              if (!map.hasImage(iconName)) {
+                const iconData = spriteData[iconName];
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d')!;
+                
+                canvas.width = iconData.width;
+                canvas.height = iconData.height;
+                
+                ctx.drawImage(
+                  spriteImage,
+                  iconData.x, iconData.y, iconData.width, iconData.height,
+                  0, 0, iconData.width, iconData.height
+                );
+                
+                // Get image data from canvas
+                const imageData = ctx.getImageData(0, 0, iconData.width, iconData.height);
+                map.addImage(iconName, {
+                  width: iconData.width,
+                  height: iconData.height,
+                  data: new Uint8Array(imageData.data.buffer)
+                });
+              }
+            });
+            console.log('DTN wind barb sprites loaded successfully');
+          }).catch(error => {
+            console.warn('Could not load DTN sprites:', error);
           });
         }
 

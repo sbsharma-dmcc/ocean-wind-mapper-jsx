@@ -48,6 +48,18 @@ const MapboxMap: React.FC<MapboxMapProps> = ({
     setMapVessels(mockVessels);
   }, []);
 
+  // Listen for DTN token updates
+  useEffect(() => {
+    const handleTokenUpdate = () => {
+      setShowTokenInput(false);
+    };
+
+    window.addEventListener('dtnTokenUpdated', handleTokenUpdate);
+    return () => {
+      window.removeEventListener('dtnTokenUpdated', handleTokenUpdate);
+    };
+  }, []);
+
   return (
     <div className="relative h-full w-full">
       <MapTopControls />
@@ -62,10 +74,10 @@ const MapboxMap: React.FC<MapboxMapProps> = ({
       </button>
 
       <button
-        onClick={() => setShowLayers(!showLayers)}
+        onClick={() => handleOverlayClick('wind')}
         className="absolute top-20 left-4 z-20 bg-white rounded-lg shadow-lg p-3 hover:bg-gray-50 transition-colors hover-scale"
       >
-        Toggle Wind Layer
+        {activeOverlays.includes('wind') ? 'Remove Wind Layer' : 'Add Wind Layer'}
       </button>
 
       <MapLayerControls
