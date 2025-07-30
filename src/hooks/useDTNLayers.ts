@@ -74,19 +74,6 @@ export const useDTNLayers = (map: mapboxgl.Map | null, layerConfigs: any, active
           maxzoom: 14,
         });
 
-        // Add wind barbs sprite if needed
-        if (overlay === 'wind') {
-          // Load the wind barbs sprite from DTN
-          const spriteUrl = "https://map.api.dtn.com/static/sprite/wind-barbs";
-          map.loadImage(`${spriteUrl}.png`, (error, image) => {
-            if (error) {
-              console.warn('Could not load wind barbs sprite, falling back to text symbols');
-            } else if (image) {
-              map.addImage('wind-barbs-sprite', image);
-            }
-          });
-        }
-
         let beforeId = undefined;
 
         // Only handle wind layer
@@ -97,168 +84,52 @@ export const useDTNLayers = (map: mapboxgl.Map | null, layerConfigs: any, active
             source: sourceId,
             "source-layer": sourceLayer,
             layout: {
-              "icon-image": [
+              "text-field": [
                 "case",
-                [
-                  "<",
-                  [
-                    "coalesce",
-                    ["get", "windSpeedStyle"],
-                    ["get", "value"]
-                  ],
-                  2.5
-                ],
-                "wind-arrow-calm-00",
-                [
-                  "case",
-                  [
-                    "==",
-                    [
-                      "coalesce",
-                      ["get", "isNorthernHemisphereStyle"],
-                      ["get", "isNorth"]
-                    ],
-                    true
-                  ],
-                  [
-                    "case",
-                    [
-                      "<",
-                      [
-                        "coalesce",
-                        ["get", "windSpeedStyle"],
-                        ["get", "value"]
-                      ],
-                      47.5
-                    ],
-                    [
-                      "concat",
-                      "wind-arrow-nh-0",
-                      [
-                        "ceil",
-                        [
-                          "/",
-                          [
-                            "-",
-                            [
-                              "coalesce",
-                              ["get", "windSpeedStyle"],
-                              ["get", "value"]
-                            ],
-                            2.49999
-                          ],
-                          5
-                        ]
-                      ]
-                    ],
-                    [
-                      "concat",
-                      "wind-arrow-nh-",
-                      [
-                        "ceil",
-                        [
-                          "/",
-                          [
-                            "-",
-                            [
-                              "coalesce",
-                              ["get", "windSpeedStyle"],
-                              ["get", "value"]
-                            ],
-                            2.49999
-                          ],
-                          5
-                        ]
-                      ]
-                    ]
-                  ],
-                  [
-                    "case",
-                    [
-                      "<",
-                      [
-                        "coalesce",
-                        ["get", "windSpeedStyle"],
-                        ["get", "value"]
-                      ],
-                      47.5
-                    ],
-                    [
-                      "concat",
-                      "wind-arrow-sh-0",
-                      [
-                        "ceil",
-                        [
-                          "/",
-                          [
-                            "-",
-                            [
-                              "coalesce",
-                              ["get", "windSpeedStyle"],
-                              ["get", "value"]
-                            ],
-                            2.49999
-                          ],
-                          5
-                        ]
-                      ]
-                    ],
-                    [
-                      "concat",
-                      "wind-arrow-sh-",
-                      [
-                        "ceil",
-                        [
-                          "/",
-                          [
-                            "-",
-                            [
-                              "coalesce",
-                              ["get", "windSpeedStyle"],
-                              ["get", "value"]
-                            ],
-                            2.49999
-                          ],
-                          5
-                        ]
-                      ]
-                    ]
-                  ]
-                ]
+                ["<", ["to-number", ["get", "value"], 0], 3], "○",
+                ["<", ["to-number", ["get", "value"], 0], 8], "│",
+                ["<", ["to-number", ["get", "value"], 0], 13], "╸│",
+                ["<", ["to-number", ["get", "value"], 0], 18], "━│",
+                ["<", ["to-number", ["get", "value"], 0], 23], "━╸│",
+                ["<", ["to-number", ["get", "value"], 0], 28], "━━│",
+                ["<", ["to-number", ["get", "value"], 0], 33], "━━╸│",
+                ["<", ["to-number", ["get", "value"], 0], 38], "━━━│",
+                ["<", ["to-number", ["get", "value"], 0], 43], "━━━╸│",
+                ["<", ["to-number", ["get", "value"], 0], 48], "━━━━│",
+                ["<", ["to-number", ["get", "value"], 0], 53], "━━━━╸│",
+                ["<", ["to-number", ["get", "value"], 0], 63], "◤│",
+                ["<", ["to-number", ["get", "value"], 0], 68], "◤╸│",
+                ["<", ["to-number", ["get", "value"], 0], 73], "◤━│",
+                ["<", ["to-number", ["get", "value"], 0], 78], "◤━╸│",
+                ["<", ["to-number", ["get", "value"], 0], 83], "◤━━│",
+                ["<", ["to-number", ["get", "value"], 0], 88], "◤━━╸│",
+                ["<", ["to-number", ["get", "value"], 0], 93], "◤━━━│",
+                ["<", ["to-number", ["get", "value"], 0], 98], "◤━━━╸│",
+                ["<", ["to-number", ["get", "value"], 0], 103], "◤━━━━│",
+                "◤◤│"
               ],
-              "icon-rotate": [
+              "text-size": layerConfigs.wind.textSize,
+              "text-rotation-alignment": "map",
+              "text-rotate": [
                 "case",
-                [
-                  "==",
-                  [
-                    "coalesce",
-                    ["get", "isNorthernHemisphereStyle"],
-                    ["get", "isNorth"]
-                  ],
-                  true
-                ],
-                [
-                  "+",
-                  [
-                    "coalesce",
-                    ["get", "windDirectionStyle"],
-                    ["get", "value1"]
-                  ],
-                  90
-                ],
-                [
-                  "+",
-                  [
-                    "coalesce",
-                    ["get", "windDirectionStyle"],
-                    ["get", "value1"]
-                  ],
-                  270
-                ]
+                ["has", "direction"],
+                ["get", "direction"],
+                ["has", "value1"], 
+                ["get", "value1"],
+                0
               ],
-              "icon-size": 0.35,
-              "icon-allow-overlap": false
-            }
+              "text-allow-overlap": layerConfigs.wind.allowOverlap,
+              "text-ignore-placement": true,
+              "symbol-spacing": layerConfigs.wind.symbolSpacing,
+              "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
+              "text-anchor": "bottom"
+            },
+            paint: {
+              "text-color": layerConfigs.wind.textColor,
+              "text-opacity": layerConfigs.wind.textOpacity,
+              "text-halo-color": layerConfigs.wind.haloColor,
+              "text-halo-width": layerConfigs.wind.haloWidth
+            },
           }, beforeId);
         }
 
