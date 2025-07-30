@@ -51,7 +51,7 @@ const MapboxMap: React.FC<MapboxMapProps> = ({
   return (
     <div className="relative h-full w-full">
       <MapTopControls />
-      {showTokenInput && <DirectTokenInput />}
+      {showTokenInput && <DirectTokenInput onClose={() => setShowTokenInput(false)} />}
       <div ref={mapContainerRef} className="absolute inset-0" />
 
       <button
