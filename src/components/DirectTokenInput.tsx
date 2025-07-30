@@ -47,23 +47,27 @@ const DirectTokenInput: React.FC = () => {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="space-y-3">
-        <Label className="text-sm font-semibold">Direct DTN Token</Label>
-        <Input
-          type="text"
-          placeholder="Enter DTN Bearer token..."
-          value={tokenInput}
-          onChange={(e) => setTokenInput(e.target.value)}
-          className="w-full"
-        />
-        <div className="flex gap-2">
-          <Button onClick={handleSetToken} size="sm" className="flex-1">
-            Set Token
-          </Button>
-          <Button onClick={handleClearToken} variant="outline" size="sm" className="flex-1">
-            Clear
-          </Button>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 shadow-xl max-w-md w-full mx-4">
+        <div className="space-y-4">
+          <div className="space-y-3">
+            <Label className="text-sm font-semibold">Direct DTN Token</Label>
+            <Input
+              type="text"
+              placeholder="Enter DTN Bearer token..."
+              value={tokenInput}
+              onChange={(e) => setTokenInput(e.target.value)}
+              className="w-full"
+            />
+            <div className="flex gap-2">
+              <Button onClick={handleSetToken} size="sm" className="flex-1">
+                Set Token
+              </Button>
+              <Button onClick={handleClearToken} variant="outline" size="sm" className="flex-1">
+                Clear
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
