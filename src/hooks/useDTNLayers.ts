@@ -170,6 +170,19 @@ export const useDTNLayers = (map: mapboxgl.Map | null, layerConfigs: any, active
         if (overlay === 'wind') {
           console.log('Adding DTN wind layer with source layer:', sourceLayer);
           
+          // First add a simple fallback layer to ensure something shows
+          map.addLayer({
+            id: `${layerId}-fallback`,
+            type: "circle",
+            source: sourceId,
+            "source-layer": sourceLayer,
+            paint: {
+              "circle-radius": 4,
+              "circle-color": "#ff0000",
+              "circle-opacity": 0.8
+            }
+          });
+          
           map.addLayer({
             id: layerId,
             type: "symbol",
@@ -178,38 +191,37 @@ export const useDTNLayers = (map: mapboxgl.Map | null, layerConfigs: any, active
             layout: {
               "icon-image": [
                 "case",
-                ["<", ["coalesce", ["get", "windSpeedStyle"], ["get", "value"]], 3],
-                "wind-barb-0",
-                ["<", ["coalesce", ["get", "windSpeedStyle"], ["get", "value"]], 8],
-                "wind-barb-5", 
-                ["<", ["coalesce", ["get", "windSpeedStyle"], ["get", "value"]], 13],
-                "wind-barb-10",
-                ["<", ["coalesce", ["get", "windSpeedStyle"], ["get", "value"]], 18],
-                "wind-barb-15",
-                ["<", ["coalesce", ["get", "windSpeedStyle"], ["get", "value"]], 23],
-                "wind-barb-20",
-                ["<", ["coalesce", ["get", "windSpeedStyle"], ["get", "value"]], 28],
-                "wind-barb-25",
-                ["<", ["coalesce", ["get", "windSpeedStyle"], ["get", "value"]], 33],
-                "wind-barb-30",
-                ["<", ["coalesce", ["get", "windSpeedStyle"], ["get", "value"]], 38],
-                "wind-barb-35",
-                ["<", ["coalesce", ["get", "windSpeedStyle"], ["get", "value"]], 43],
-                "wind-barb-40",
-                ["<", ["coalesce", ["get", "windSpeedStyle"], ["get", "value"]], 48],
-                "wind-barb-45",
-                ["<", ["coalesce", ["get", "windSpeedStyle"], ["get", "value"]], 53],
-                "wind-barb-50",
-                ["<", ["coalesce", ["get", "windSpeedStyle"], ["get", "value"]], 58],
-                "wind-barb-55",
-                ["<", ["coalesce", ["get", "windSpeedStyle"], ["get", "value"]], 63],
-                "wind-barb-60",
-                ["<", ["coalesce", ["get", "windSpeedStyle"], ["get", "value"]], 68],
-                "wind-barb-65",
-                "wind-barb-70"
+                ["has", "windSpeedStyle"], 
+                [
+                  "case",
+                  ["<", ["get", "windSpeedStyle"], 3], "wind-barb-0",
+                  ["<", ["get", "windSpeedStyle"], 8], "wind-barb-5", 
+                  ["<", ["get", "windSpeedStyle"], 13], "wind-barb-10",
+                  ["<", ["get", "windSpeedStyle"], 18], "wind-barb-15",
+                  ["<", ["get", "windSpeedStyle"], 23], "wind-barb-20",
+                  ["<", ["get", "windSpeedStyle"], 28], "wind-barb-25",
+                  ["<", ["get", "windSpeedStyle"], 33], "wind-barb-30",
+                  "wind-barb-35"
+                ],
+                ["has", "value"],
+                [
+                  "case", 
+                  ["<", ["get", "value"], 3], "wind-barb-0",
+                  ["<", ["get", "value"], 8], "wind-barb-5",
+                  ["<", ["get", "value"], 13], "wind-barb-10",
+                  ["<", ["get", "value"], 18], "wind-barb-15", 
+                  ["<", ["get", "value"], 23], "wind-barb-20",
+                  "wind-barb-25"
+                ],
+                "wind-barb-10"
               ],
-              "icon-rotate": ["coalesce", ["get", "windDirectionStyle"], ["get", "value1"]],
-              "icon-size": 0.6,
+              "icon-rotate": [
+                "case",
+                ["has", "windDirectionStyle"], ["get", "windDirectionStyle"],
+                ["has", "value1"], ["get", "value1"],
+                0
+              ],
+              "icon-size": 0.8,
               "icon-allow-overlap": true,
               "icon-ignore-placement": true,
               "icon-rotation-alignment": "map"
@@ -221,17 +233,58 @@ export const useDTNLayers = (map: mapboxgl.Map | null, layerConfigs: any, active
           
           console.log('DTN wind layer added successfully');
         }
-
-        // Debug: Check if layer was added and log any features
+        
+        // Enhanced debugging: Check if layer was added and log features
         setTimeout(() => {
-          const features = map.querySourceFeatures(sourceId, {
-            sourceLayer: sourceLayer
-          });
-          console.log(`Found ${features.length} features in wind layer`);
-          if (features.length > 0) {
-            console.log('Sample feature:', features[0]);
+          console.log('=== DTN Wind Layer Debug Info ===');
+          
+          // Check if layers exist
+          console.log('Layer exists:', !!map.getLayer(layerId));
+          console.log('Fallback layer exists:', !!map.getLayer(`${layerId}-fallback`));
+          console.log('Source exists:', !!map.getSource(sourceId));
+          
+          // Check for features
+          try {
+            const features = map.querySourceFeatures(sourceId, {
+              sourceLayer: sourceLayer
+            });
+            console.log(`Found ${features.length} features in DTN wind layer`);
+            
+            if (features.length > 0) {
+              console.log('Sample feature properties:', features[0].properties);
+              console.log('Available property keys:', Object.keys(features[0].properties || {}));
+              
+              // Check for wind data fields
+              const props = features[0].properties || {};
+              console.log('Wind speed fields:', {
+                windSpeedStyle: props.windSpeedStyle,
+                value: props.value,
+                speed: props.speed
+              });
+              console.log('Wind direction fields:', {
+                windDirectionStyle: props.windDirectionStyle,
+                value1: props.value1,
+                direction: props.direction
+              });
+            } else {
+              console.log('No features found - checking if tiles are loading...');
+              
+              // Check for tile errors
+              map.on('error', (e) => {
+                console.error('Map error after layer add:', e);
+              });
+            }
+          } catch (error) {
+            console.error('Error querying features:', error);
           }
-        }, 2000);
+          
+          // Check if wind barb images are loaded
+          const windBarbImages = [0, 5, 10, 15, 20, 25, 30, 35].map(speed => `wind-barb-${speed}`);
+          const loadedImages = windBarbImages.filter(img => map.hasImage(img));
+          console.log(`Wind barb images loaded: ${loadedImages.length}/${windBarbImages.length}`, loadedImages);
+          
+          console.log('=== End Debug Info ===');
+        }, 3000);
 
         setActiveOverlays(prev => [...prev, overlay]);
         console.log(`Successfully added ${overlay} layer`);
@@ -266,7 +319,10 @@ export const useDTNLayers = (map: mapboxgl.Map | null, layerConfigs: any, active
     const blurLayerId = `${layerId}-blur`;
     const fillLayerId = `${layerId}-fill`;
 
-    // Remove all related layers
+    // Remove all related layers including fallback
+    if (map.getLayer(`${layerId}-fallback`)) {
+      map.removeLayer(`${layerId}-fallback`);
+    }
     if (map.getLayer(fillLayerId)) {
       map.removeLayer(fillLayerId);
     }
