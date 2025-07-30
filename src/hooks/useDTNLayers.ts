@@ -81,53 +81,80 @@ export const useDTNLayers = (map: mapboxgl.Map | null, layerConfigs: any, active
           (map as any)._dtnTransformSet = true;
         }
 
-        // Load custom wind barb SVGs
+        // Create simple wind direction icons
         if (overlay === 'wind') {
-          createWindBarbImages(map);
+          // Create a simple arrow icon for wind direction
+          const canvas = document.createElement('canvas');
+          canvas.width = 32;
+          canvas.height = 32;
+          const ctx = canvas.getContext('2d')!;
+          
+          // Draw arrow pointing up
+          ctx.fillStyle = '#0066cc';
+          ctx.strokeStyle = '#0066cc';
+          ctx.lineWidth = 2;
+          
+          ctx.beginPath();
+          ctx.moveTo(16, 4);
+          ctx.lineTo(12, 12);
+          ctx.lineTo(16, 10);
+          ctx.lineTo(20, 12);
+          ctx.closePath();
+          ctx.fill();
+          
+          // Draw shaft
+          ctx.fillRect(14, 10, 4, 18);
+          
+          if (!map.hasImage('wind-arrow')) {
+            const imageData = ctx.getImageData(0, 0, 32, 32);
+            map.addImage('wind-arrow', {
+              width: 32,
+              height: 32,
+              data: new Uint8Array(imageData.data.buffer)
+            });
+          }
+          
+          console.log('Added wind arrow icon to map');
         }
 
         let beforeId = undefined;
 
-        // Add wind layer with custom SVG barbs
+        // Add wind layer with simple arrow icons
         if (overlay === 'wind') {
+          console.log('Adding wind layer with source layer:', sourceLayer);
+          
           map.addLayer({
             id: layerId,
             type: "symbol",
             source: sourceId,
             "source-layer": sourceLayer,
             layout: {
-              "icon-image": [
-                "case",
-                ["<", ["coalesce", ["get", "windSpeedStyle"], ["get", "value"]], 2.5],
-                "wind-barb-0",
-                [
-                  "concat",
-                  "wind-barb-",
-                  [
-                    "*",
-                    5,
-                    [
-                      "round",
-                      [
-                        "/",
-                        ["coalesce", ["get", "windSpeedStyle"], ["get", "value"]],
-                        5
-                      ]
-                    ]
-                  ]
-                ]
-              ],
-              "icon-rotate": [
-                "+",
-                ["coalesce", ["get", "windDirectionStyle"], ["get", "value1"]],
-                0
-              ],
+              "icon-image": "wind-arrow",
+              "icon-rotate": ["get", "windDirectionStyle"],
               "icon-size": 0.8,
               "icon-allow-overlap": true,
-              "icon-ignore-placement": true
+              "icon-ignore-placement": true,
+              "symbol-placement": "point",
+              "icon-rotation-alignment": "map"
+            },
+            paint: {
+              "icon-opacity": 1
             }
           }, beforeId);
+          
+          console.log('Wind layer added successfully');
         }
+
+        // Debug: Check if layer was added and log any features
+        setTimeout(() => {
+          const features = map.querySourceFeatures(sourceId, {
+            sourceLayer: sourceLayer
+          });
+          console.log(`Found ${features.length} features in wind layer`);
+          if (features.length > 0) {
+            console.log('Sample feature:', features[0]);
+          }
+        }, 2000);
 
         setActiveOverlays(prev => [...prev, overlay]);
         console.log(`Successfully added ${overlay} layer`);
